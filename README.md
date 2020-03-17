@@ -1,2 +1,5 @@
-# lwip-tools
-collect some net tools for test lwip.
+# lwip-nettools
+collect some tools to test lwip.
+
+2020-03-16:version 0.1
+    add ping tool.
