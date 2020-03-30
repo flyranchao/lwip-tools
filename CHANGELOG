@@ -1,0 +1,38 @@
+# lwip-nettools
+collect some tools to test lwip.
+
+2020-03-16:version 0.1
+    add ping tool.
+
+2020-03-17:version 0.2
+    add wget tool.
+
+2020-03-17:version 0.3
+    add iperf tool.
+
+2020-03-30:version 0.4
+    fix miniwget's bug.
+
+2020-03-30:version 0.5
+    add http tool.
+
+2020-03-30:version 0.6
+    add netio tool.
+
+2020-03-30:version 0.7
+    add telnet tool.
+
+2020-03-30:version 0.8
+    add tcpdump tool.
+
+2020-03-30:version 0.9
+    add ntp tool.
+
+2020-03-30:version 1.0
+    add tftp tool.
+
+2020-03-30:version 1.1
+    add win tools exe.
+
+2020-03-30:version 1.2
+    add optparse tool.

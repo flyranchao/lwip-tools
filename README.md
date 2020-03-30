@@ -1,11 +1,4 @@
-# lwip-nettools
-collect some tools to test lwip.
-
-2020-03-16:version 0.1
-    add ping tool.
-
-2020-03-17:version 0.2
-    add wget tool.
-
-2020-03-17:version 0.3
-    add iperf tool.
+lwip tools
+1.收集一些常用的网络测试工具(包括win工具和测试程序)．
+2.收集一些常用的网络测试用例．
+3.收集一些经典的demo，如，命令行解析，url解析..．
