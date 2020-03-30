@@ -25,10 +25,10 @@ struct HTTP_RES_HEADER//保持相应头信息
     long content_length;//Content-Length: 11683079
 };
 
-void parse_url_mult(const char *url, char *host, int *port, char *file_name)
+void parse_url_mult(const char *url, char **newurl_p, char *host, int *port, char *file_name)
 {
     /*通过url解析出域名, 端口, 以及文件名*/
-    int j = 0;
+    int i, j = 0;
     int start = 0;
     *port = 80;
     char *patterns[] = {"http://", "https://", NULL};
@@ -38,10 +38,13 @@ void parse_url_mult(const char *url, char *host, int *port, char *file_name)
             start = strlen(patterns[i]);
 
     //解析域名, 这里处理时域名后面的端口号会保留
-    for (int i = start; url[i] != '/' && url[i] != '\0'; i++, j++)
+    for (i = start; url[i] != '/' && url[i] != '\0'; i++, j++)
         host[j] = url[i];
     host[j] = '\0';
 
+    *newurl_p = url + i + 1;
+    printf("start:%d\n", start);
+    printf("url:%s\n newurl:%s\n", url, *newurl_p);
     //解析端口号, 如果没有, 那么设置端口为80
     char *pos = strstr(host, ":");
     if (pos)
@@ -127,12 +130,19 @@ void progress_bar(long cur_size, long total_size, double speed)
     char sign[51] = {0};
     memset(sign, '=', numTotal);
 
-    printf("\r%.2f%%[%-*.*s] %.2f/%.2fMB %4.0fkb/s", percent * 100, numTotal, numShow, sign, cur_size / 1024.0 / 1024.0, total_size / 1024.0 / 1024.0, speed);
+    printf("\r%.2f%%[%-*.*s] %.2f/%.2fMB %4.0fkb/s",
+	percent * 100,
+	numTotal,
+	numShow,
+	sign,
+	cur_size / 1024.0 / 1024.0,
+	total_size / 1024.0 / 1024.0,
+	speed);
+
     fflush(stdout);
 
     if (numShow == numTotal)
-        printf("\n");
-
+        printf("\nDownload 100.00%%\n");
 }
 
 unsigned long get_file_size(const char *filename)
@@ -161,7 +171,7 @@ void download_mult(int client_socket, char *file_name, long content_length)
     int fd = open(file_name, O_CREAT | O_WRONLY, S_IRWXG | S_IRWXO | S_IRWXU);
     if (fd < 0)
     {
-        printf("文件创建失败!\n");
+        printf("Create file failed\n");
         return;
     }
 
@@ -207,6 +217,7 @@ int cmd_wgetm(int argc, char const *argv[])
      * 示例: ./download http://www.baidu.com baidu.html
      */
     char url[2048] = "127.0.0.1";//设置默认地址为本机,
+    char *newurl;
     char host[64] = {0};//远程主机地址
     char ip_addr[16] = {0};//远程主机IP地址
     int port = 80;//远程主机端口, http默认80端口
@@ -214,38 +225,39 @@ int cmd_wgetm(int argc, char const *argv[])
 
     if (argc == 1)
     {
-        printf("您必须给定一个http地址才能开始工作\n");
+        printf("Input a valid URL please\n");
         return -1;
     }
     else
         strcpy(url, argv[1]);
 
-    puts("1: 正在解析下载地址...");
-    parse_url_mult(url, host, &port, file_name);//从url中分析出主机名, 端口号, 文件名
+    puts("1: Parsing url...");
+    parse_url_mult(url, &newurl, host, &port, file_name);//从url中分析出主机名, 端口号, 文件名
+    printf("url:%s\n newurl:%s\n", url, newurl);
 
     if (argc == 3)
     {
-        printf("\t您已经将下载文件名指定为: %s\n", argv[2]);
+        printf("\tyou have download the file : %s\n", argv[2]);
         strcpy(file_name, argv[2]);
     }
 
-    puts("2: 正在获取远程服务器IP地址...");
+    puts("2: Get ip address...");
     get_ip_addr_mult(host, ip_addr);//调用函数同访问DNS服务器获取远程主机的IP
     if (strlen(ip_addr) == 0)
     {
-        printf("错误: 无法获取到远程服务器的IP地址, 请检查下载地址的有效性\n");
+        printf("can not get ip address\n");
         return 0;
     }
 
-    puts("\n>>>>下载地址解析成功<<<<");
-    printf("\t下载地址: %s\n", url);
-    printf("\t远程主机: %s\n", host);
-    printf("\tIP 地 址: %s\n", ip_addr);
-    printf("\t主机PORT: %d\n", port);
-    printf("\t 文件名 : %s\n\n", file_name);
+    puts("\n>>>>Detail<<<<");
+	printf("\tURL: %s\n", newurl);
+    printf("\tDOMAIN: %s\n", host);
+    printf("\tIP: %s\n", ip_addr);
+    printf("\tPORT: %d\n", port);
+    printf("\tFILENAME: %s\n\n", file_name);
 
     //设置http请求头信息
-    char header[2048] = {0};
+    char header[2560] = {0};
     sprintf(header, \
             "GET %s HTTP/1.1\r\n"\
             "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n"\
@@ -253,13 +265,13 @@ int cmd_wgetm(int argc, char const *argv[])
             "Host: %s\r\n"\
             "Connection: keep-alive\r\n"\
             "\r\n"\
-        ,url, host);
+        ,newurl, host);
 
-    puts("3: 创建网络套接字...");
+    puts("3: create socket...");
     int client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (client_socket < 0)
     {
-        printf("套接字创建失败: %d\n", client_socket);
+        printf("invalid socket descriptor: %d\n", client_socket);
        return -1;
     }
 
@@ -271,15 +283,15 @@ int cmd_wgetm(int argc, char const *argv[])
     addr.sin_port = htons(port);
 
     //连接远程主机
-    puts("4: 正在连接远程主机...");
+    puts("4: Connect server...");
     int res = connect(client_socket, (struct sockaddr *) &addr, sizeof(addr));
     if (res == -1)
     {
-        printf("连接远程主机失败, error: %d\n", res);
+        printf("connect failed, return, error: %d\n", res);
         return -1;
     }
 
-    puts("5: 正在发送http下载请求...");
+    puts("5: Send request...");
     lwip_write(client_socket, header, strlen(header));//write系统调用, 将请求header发送给服务器
 
 
@@ -290,7 +302,7 @@ int cmd_wgetm(int argc, char const *argv[])
     char *response = (char *) malloc(mem_size * sizeof(char));
 
     //每次单个字符读取响应头信息
-    puts("6: 正在解析http响应头...");
+    puts("6: Response header:...");
     while ((len = lwip_read(client_socket, buf, 1)) != 0)
     {
         if (length + len > mem_size)
@@ -300,7 +312,7 @@ int cmd_wgetm(int argc, char const *argv[])
             char * temp = (char *) realloc(response, sizeof(char) * mem_size);
             if (temp == NULL)
             {
-                printf("动态内存申请失败\n");
+                printf("malloc mem failed\n");
 		goto fail;
             }
             response = temp;
@@ -320,28 +332,28 @@ int cmd_wgetm(int argc, char const *argv[])
 
     struct HTTP_RES_HEADER resp = parse_header(response);
 
-    printf("\n>>>>http响应头解析成功:<<<<\n");
+    printf("\n>>>>http header success:<<<<\n");
 
-    printf("\tHTTP响应代码: %d\n", resp.status_code);
+    printf("\tHTTP code: %d\n", resp.status_code);
     if (resp.status_code != 200)
     {
-        printf("文件无法下载, 远程主机返回: %d\n", resp.status_code);
+        printf("can not download status: %d\n", resp.status_code);
 	goto fail;
     }
-    printf("\tHTTP文档类型: %s\n", resp.content_type);
-    printf("\tHTTP主体长度: %ld字节\n\n", resp.content_length);
+    printf("\tHTTP file type: %s\n", resp.content_type);
+    printf("\tHTTP body length: %ld字节\n\n", resp.content_length);
 
 
-    printf("7: 开始文件下载...\n");
+    printf("7: start download...\n");
     download_mult(client_socket, file_name, resp.content_length);
-    printf("8: 关闭套接字\n");
+    printf("8: close socket\n");
 
     if (resp.content_length == get_file_size(file_name))
-        printf("\n文件%s下载成功! ^_^\n\n", file_name);
+        printf("\nfile %s download success! ^_^\n\n", file_name);
     else
     {
         remove(file_name);
-        printf("\n文件下载中有字节缺失, 下载失败, 请重试!\n\n");
+        printf("\nfile download failed retry!\n\n");
     }
     shutdown(client_socket, 2);//关闭套接字的接收和发送
     if (buf)

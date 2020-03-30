@@ -30,10 +30,10 @@ struct resp_header//保持相应头信息
 
 struct resp_header resp;//全剧变量以便在多个进程中使用
 
-void parse_url(const char *url, char *domain, int *port, char *file_name)
+void parse_url(const char *url, char **newurl_p, char *domain, int *port, char *file_name)
 {
     /*通过url解析出域名, 端口, 以及文件名*/
-    int j = 0;
+    int i, j = 0;
     int start = 0;
     *port = 80;
     char *patterns[] = {"http://", "https://", NULL};
@@ -43,9 +43,13 @@ void parse_url(const char *url, char *domain, int *port, char *file_name)
             start = strlen(patterns[i]);
 
     //解析域名, 这里处理时域名后面的端口号会保留
-    for (int i = start; url[i] != '/' && url[i] != '\0'; i++, j++)
+    for (i = start; url[i] != '/' && url[i] != '\0'; i++, j++)
         domain[j] = url[i];
     domain[j] = '\0';
+
+    *newurl_p = url + i + 1;
+    printf("start:%d\n", start);
+    printf("url:%s\n newurl:%s\n", url, *newurl_p);
 
     //解析端口号, 如果没有, 那么设置端口为80
     char *pos = strstr(domain, ":");
@@ -101,6 +105,7 @@ struct resp_header get_resp_header(const char *response)
 
 void get_ip_addr(char *domain, char *ip_addr)
 {
+    printf("domain:%s\n",domain);
     /*通过域名得到相应的ip地址*/
     struct hostent *host = gethostbyname(domain);
     if (!host)
@@ -133,7 +138,13 @@ void progressBar(long cur_size, long total_size)
     char sign[51] = {0};
     memset(sign, '=', numTotal);
 
-    printf("\r%.2f%%\t[%-*.*s] %.2f/%.2fMB", percent * 100, numTotal, numShow, sign, cur_size / 1024.0 / 1024.0, total_size / 1024.0 / 1024.0);
+    printf("\r%.2f%%\t[%-*.*s] %.2f/%.2fMB",
+		percent * 100,
+		numTotal,
+		numShow,
+		sign,
+		cur_size / 1024.0 / 1024.0,
+		total_size / 1024.0 / 1024.0);
     fflush(stdout);
 
     if (numShow == numTotal)
@@ -158,7 +169,7 @@ void * download(void * socket_d)
     if (fd < 0)
     {
         printf("Create file failed\n");
-        exit(-1);
+	return NULL;
     }
 
     char *buf = (char *) malloc(mem_size * sizeof(char));
@@ -174,9 +185,14 @@ void * download(void * socket_d)
     if (length == resp.content_length)
         printf("\nDownload successful ^_^\n\n");
     else
-        printf("\nLength %d resp.content_length:%d\n\n", length, resp.content_length);
-    free(buf);
-    close(fd);
+        printf("\nLength %d resp.content_length:%ld\n\n", length, resp.content_length);
+    if (buf)
+	    free(buf);
+    if (fd >= 0)
+	    close(fd);
+
+    return NULL;
+
 }
 
 int cmd_wgets(int argc, char ** argv)
@@ -187,6 +203,7 @@ int cmd_wgets(int argc, char ** argv)
         2. http://img.ivsky.com/img/tupian/pre/201312/04/nelumbo_nucifera-009.jpg
     */
     char url[2048] = "127.0.0.1";
+    char *newurl;
     char domain[64] = {0};
     char ip_addr[16] = {0};
     int port = 80;
@@ -201,7 +218,8 @@ int cmd_wgets(int argc, char ** argv)
         strcpy(url, argv[1]);
 
     puts("1: Parsing url...");
-    parse_url(url, domain, &port, file_name);
+    parse_url(url, &newurl, domain, &port, file_name);
+    printf("url:%s\n newurl:%s\n", url, newurl);
 
     if (argc == 3)
         strcpy(file_name, argv[2]);
@@ -215,14 +233,14 @@ int cmd_wgets(int argc, char ** argv)
     }
 
     puts("\n>>>>Detail<<<<");
-    printf("URL: %s\n", url);
+	printf("URL: %s\n", newurl);
     printf("DOMAIN: %s\n", domain);
     printf("IP: %s\n", ip_addr);
     printf("PORT: %d\n", port);
     printf("FILENAME: %s\n\n", file_name);
 
     //设置http请求头信息
-    char header[2048] = {0};
+    char header[2560] = {0};
     sprintf(header, \
             "GET %s HTTP/1.1\r\n"\
             "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n"\
@@ -230,7 +248,7 @@ int cmd_wgets(int argc, char ** argv)
             "Host:%s\r\n"\
             "Connection:close\r\n"\
             "\r\n"\
-        ,url, domain);
+	    ,newurl, domain);
 
     printf("%s\n%d\n", header, (int) strlen(header));
 
